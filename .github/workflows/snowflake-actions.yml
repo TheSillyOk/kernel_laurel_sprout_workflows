@@ -40,7 +40,7 @@ jobs:
           echo "tag=[Snowflake]" >> $GITHUB_OUTPUT
 
   ksunextsusfs:
-    uses: ./.github/workflows/ksunextsusfs.yml
+    uses: ./.github/workflows/build.yml
     needs: set-env
     secrets: inherit
     with:
@@ -52,10 +52,12 @@ jobs:
       anykernel_branch: ${{ needs.set-env.outputs.anykernel_branch }}
       tag: ${{ needs.set-env.outputs.tag }}
       ksu_url: ${{ inputs.ksu_url }}
-      ksu_branch: ${{ inputs.ksu_branch }}
-      ksu_sus_b: ${{ inputs.ksu_sus_b }}
+      ksu_branch: ${{ inputs.ksu_sus_b }}
+      susfs: "true"
+      build_type: "-[KSUNext-SUSFS]"
+
   main:
-    uses: ./.github/workflows/main.yml
+    uses: ./.github/workflows/build.yml
     needs: set-env
     secrets: inherit
     with:
@@ -66,11 +68,12 @@ jobs:
       anykernel_url: ${{ needs.set-env.outputs.anykernel_url }}
       anykernel_branch: ${{ needs.set-env.outputs.anykernel_branch }}
       tag: ${{ needs.set-env.outputs.tag }}
-      ksu_url: ${{ inputs.ksu_url }}
-      ksu_branch: ${{ inputs.ksu_branch }}
-      ksu_sus_b: ${{ inputs.ksu_sus_b }}
+      ksu_url: "false"
+      susfs: "false"
+      build_type: ""
+
   ksunext:
-    uses: ./.github/workflows/ksunext.yml
+    uses: ./.github/workflows/build.yml
     needs: set-env
     secrets: inherit
     with:
@@ -83,4 +86,6 @@ jobs:
       tag: ${{ needs.set-env.outputs.tag }}
       ksu_url: ${{ inputs.ksu_url }}
       ksu_branch: ${{ inputs.ksu_branch }}
-      ksu_sus_b: ${{ inputs.ksu_sus_b }}
+      susfs: "false"
+      build_type: "-[KSUNext]"
+

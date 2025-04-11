@@ -1,4 +1,4 @@
- name: Kernel Build
+ name: Kernel Build (KSUNext+SUSFS)
  on:
   workflow_call:
    inputs:
@@ -28,8 +28,8 @@
       required: true
      ksu_branch:
       type: string
-      required: true
-     ksu_sus_b:
+      required: false
+     susfs:
       type: string
       required: true
  jobs:
@@ -71,7 +71,6 @@
           mkdir -p "$WORKSPACE_FOLDER"
           echo "workspace-folder=$WORKSPACE_FOLDER" >> $GITHUB_OUTPUT
           echo "start_time=$(date +%s)" >> $GITHUB_OUTPUT
-          echo "build_title=$BUILD_TITLE" >> $GITHUB_OUTPUT
 
           sudo apt-get update -y -qq
           sudo apt-get install -y --no-install-recommends \
@@ -153,10 +152,11 @@
          restore-keys: |
           ${{ inputs.tag }}-ccache-
 
-      - name: Clone kernel source and repositories
+      - name: Preparing kernel
         id: kernel
         run: |
           set -e
+ 
           # Use the absolute workspace folder
           WORKSPACE_FOLDER="${{ steps.workspace.outputs.workspace-folder }}"
           # Clone the kernel tree into an absolute path
@@ -164,27 +164,13 @@
           echo "kernel-folder=$WORKSPACE_FOLDER/kernel_tree" >> $GITHUB_OUTPUT
 
           # Clone additional repositories into the absolute workspace folder
-          # git clone https://gitlab.com/simonpunk/susfs4ksu.git -b kernel-4.14 "$WORKSPACE_FOLDER/susfs4ksu"
-          git clone "${{ inputs.patches_url }}.git" -b "${{ inputs.patches_branch }}" "$WORKSPACE_FOLDER/kernel_patches"
 
-          # Create necessary directories in the kernel tree (using absolute paths)
+          git clone "${{ inputs.patches_url }}" -b "${{ inputs.patches_branch }}" "$WORKSPACE_FOLDER/kernel_patches"
           mkdir -p "$WORKSPACE_FOLDER/kernel_tree/common/fs" "$WORKSPACE_FOLDER/kernel_tree/common/include/linux"
-      - name: Apply KernelSU and SUSFS patches
-        run: |
-          set -e
-          # Define absolute paths
           KERNEL_FOLDER="${{ steps.kernel.outputs.kernel-folder }}"
           WORKSPACE_FOLDER="${{ steps.workspace.outputs.workspace-folder }}"
-  
-          # Change to the kernel root using its absolute path
           cd "$KERNEL_FOLDER"
-          echo "Current working directory (Kernel Root): $(pwd)"
-          patch -p1 < "$WORKSPACE_FOLDER/kernel_patches/apatch.patch"
-          # Copy SUSFS files using absolute paths
-          # cp "$WORKSPACE_FOLDER/susfs4ksu/kernel_patches/fs/susfs.c" "$KERNEL_FOLDER/fs/"
-          # cp "$WORKSPACE_FOLDER/susfs4ksu/kernel_patches/include/linux/susfs.h" "$KERNEL_FOLDER/include/linux/"
-          # cp "$WORKSPACE_FOLDER/susfs4ksu/kernel_patches/include/linux/susfs_def.h" "$KERNEL_FOLDER/include/linux/"
-          KERNEL_PATCHES_FOLDER="$WORKSPACE_FOLDER/kernel_patches"
+
           # python3
           PYTHON3="$KERNEL_PATCHES_FOLDER/python3.patch"
           PYTHON3_DST="$KERNEL_FOLDER/python3.patch"
@@ -192,29 +178,91 @@
            cp "$PYTHON3" "$PYTHON3_DST"
            echo "Applying python3.patch..."
            patch -p1 -F 3 -N < "$KERNEL_FOLDER/python3.patch" || true
+          echo "Applying fix_lto.patch..."
+           patch -p1 < "$WORKSPACE_FOLDER/kernel_patches/fix_lto.patch" || true
+           sed -i 's/-dirty//' ./scripts/setlocalversion
+           if [ -e "$KERNEL_FOLDER/arch/arm64/configs/vendor/laurel_sprout-perf_defconfig" ]; then
+            sed -i -E 's/^CONFIG_(LTO[^=]*|HAVE_LTO[^=]*|CC_OPTIMIZE_FOR[^=]*|MODVERSIONS)=(y|n)/# CONFIG_\1=\2/g' arch/arm64/configs/vendor/laurel_sprout-perf_defconfig
+            echo -e "\n\n# Workflow added configs #\nCONFIG_LTO_CLANG=y\nCONFIG_LTO_CLANG_THIN=y\nCONFIG_HAVE_LTO_CLANG=y\nCONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y\nCONFIG_MODVERSIONS=n" >> arch/arm64/configs/vendor/laurel_sprout-perf_defconfig
+           else
+            sed -i -E 's/^CONFIG_(LTO[^=]*|HAVE_LTO[^=]*|CC_OPTIMIZE_FOR[^=]*|MODVERSIONS)=(y|n)/# CONFIG_\1=\2/g' arch/arm64/configs/vendor/trinket-perf_defconfig
+            echo -e "\n\n# Workflow added configs #\nCONFIG_LTO_CLANG=y\nCONFIG_LTO_CLANG_THIN=y\nCONFIG_HAVE_LTO_CLANG=y\nCONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y\nCONFIG_MODVERSIONS=n" >> arch/arm64/configs/vendor/trinket-perf_defconfig
+           fi
+
+      - name: Apply KernelSU
+        if: ${{ inputs.ksu_url != 'false' }}
+        run: |
+          set -e
+
+          # Define absolute paths
+          KERNEL_FOLDER="${{ steps.kernel.outputs.kernel-folder }}"
+          WORKSPACE_FOLDER="${{ steps.workspace.outputs.workspace-folder }}"
+  
+          # Change to the kernel root using its absolute path
+          cd "$KERNEL_FOLDER"
+          echo "Current working directory (Kernel Root): $(pwd)"
+
           # Manual hooks
           MANUAL_HOOKS="$KERNEL_PATCHES_FOLDER/manual_hooks.patch"
           MANUAL_HOOKS_DST="$KERNEL_FOLDER/manual_hooks.patch"
-          # ls -l "$MANUAL_HOOKS"
-          # cp "$MANUAL_HOOKS" "$MANUAL_HOOKS_DST"
-          # echo "Applying manual_hooks.patch..."
-          # patch -p1 -F 3 -N < "$KERNEL_FOLDER/manual_hooks.patch" || true
+          ls -l "$MANUAL_HOOKS"
+          cp "$MANUAL_HOOKS" "$MANUAL_HOOKS_DST"
+          echo "Applying manual_hooks.patch..."
+          patch -p1 -F 3 -N < "$KERNEL_FOLDER/manual_hooks.patch" || true
           # Set up KernelSU-Next (ensuring a fresh setup)
-          # echo "--- Setting up KernelSU-Next ---"
-          # rm -rf "$KERNEL_FOLDER/KernelSU-Next"
-          # curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next-susfs
-          # echo "--- KernelSU-Next setup complete ---"
-  
+          echo "--- Setting up KernelSU-Next ---"
+          rm -rf "$KERNEL_FOLDER/KernelSU-Next"
+          curl -LSs "${{ inputs.ksu_url }}" | bash -s "${{ inputs.ksu_branch }}"
+          echo "--- KernelSU-Next setup complete ---"
+
+          # Append configuration settings to the defconfig file (using its absolute path)
+           if [ -e "$KERNEL_FOLDER/arch/arm64/configs/vendor/laurel_sprout-perf_defconfig" ]; then
+            sed -i -E 's/^CONFIG_(KPROBES|TMPFS_XATTR|KSU[^=]*)=(y|n)/# CONFIG_\1=\2/g' arch/arm64/configs/vendor/laurel_sprout-perf_defconfig && echo -e "\n\n# Workflow added configs #\nCONFIG_KPROBES=n\nCONFIG_KSU=y\nCONFIG_KSU_SUSFS=y\nCONFIG_TMPFS_XATTR=y" >> arch/arm64/configs/vendor/laurel_sprout-perf_defconfig
+           else
+            sed -i -E 's/^CONFIG_(KPROBES|TMPFS_XATTR|KSU[^=]*)=(y|n)/# CONFIG_\1=\2/g' arch/arm64/configs/vendor/trinket-perf_defconfig && echo -e "\n\n# Workflow added configs #\nCONFIG_KPROBES=n\nCONFIG_KSU=y\nCONFIG_KSU_SUSFS=y\nCONFIG_TMPFS_XATTR=y" >> arch/arm64/configs/vendor/trinket-perf_defconfig
+           fi
+
+      - name: Apply SUSFS
+        if: ${{ inputs.susfs != 'false' }}
+        run: |
+          set -e
+
+          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b kernel-4.14 "$WORKSPACE_FOLDER/susfs4ksu"
+
+          # Copy SUSFS files using absolute paths
+          cp "$WORKSPACE_FOLDER/susfs4ksu/kernel_patches/fs/susfs.c" "$KERNEL_FOLDER/fs/"
+          cp "$WORKSPACE_FOLDER/susfs4ksu/kernel_patches/include/linux/susfs.h" "$KERNEL_FOLDER/include/linux/"
+          cp "$WORKSPACE_FOLDER/susfs4ksu/kernel_patches/include/linux/susfs_def.h" "$KERNEL_FOLDER/include/linux/"
+          KERNEL_PATCHES_FOLDER="$WORKSPACE_FOLDER/kernel_patches"
+
           # Debug and copy patch files using absolute paths
-          # echo "--- Debugging Patch File Copying ---"
-          
-          # echo "Copying patch files..."
-          # mkdir -p "$KERNEL_FOLDER/fs" "$KERNEL_FOLDER/include/linux" "$KERNEL_FOLDER/KernelSU-Next"
-          # cp "$SUSFS_PATCH_50_SRC" "$SUSFS_PATCH_50_DST"
-          # cp "$HIDE_STUFF_PATCH_69_SRC" "$HIDE_STUFF_PATCH_69_DST"
-          # cp "$KSU_SUSFS_PATCH_10_SRC" "$KSU_SUSFS_PATCH_10_DST"
-          # cp "$FIX_SUSFS_REJECTS" "$FIX_SUSFS_REJECTS_DST"
-          # echo "Patch files copied."
+          echo "--- Debugging Patch File Copying ---"
+          SUSFS4KSU_PATCHES_FOLDER="$WORKSPACE_FOLDER/susfs4ksu/kernel_patches"
+          SUSFS_PATCH_50_SRC="$SUSFS4KSU_PATCHES_FOLDER/50_add_susfs_in_kernel-4.14.patch"
+          HIDE_STUFF_PATCH_69_SRC="$KERNEL_PATCHES_FOLDER/69_hide_stuff.patch"
+          KSU_SUSFS_PATCH_10_SRC="$SUSFS4KSU_PATCHES_FOLDER/KernelSU/10_enable_susfs_for_ksu.patch"
+          FIX_SUSFS_REJECTS="$KERNEL_PATCHES_FOLDER/fix_susfs_rejects.patch"
+          SUSFS_PATCH_50_DST="$KERNEL_FOLDER/50_add_susfs.patch"
+          HIDE_STUFF_PATCH_69_DST="$KERNEL_FOLDER/69_hide_stuff.patch"
+          KSU_SUSFS_PATCH_10_DST="$KERNEL_FOLDER/KernelSU-Next/10_enable_susfs_for_ksu.patch"
+          FIX_SUSFS_REJECTS_DST="$KERNEL_FOLDER/fix_susfs_rejects.patch"
+          FIX_HIDE_REJECTS="$KERNEL_PATCHES_FOLDER/fix_hide_rejects.patch"
+          FIX_HIDE_REJECTS_DST="$KERNEL_FOLDER/fix_hide_rejects.patch"
+          echo "Checking source patch file existence:"
+          ls -l "$SUSFS_PATCH_50_SRC"
+          ls -l "$HIDE_STUFF_PATCH_69_SRC"
+          ls -l "$KSU_SUSFS_PATCH_10_SRC"
+          ls -l "$FIX_SUSFS_REJECTS"
+          ls -l "$FIX_HIDE_REJECTS"
+
+          echo "Copying patch files..."
+          mkdir -p "$KERNEL_FOLDER/fs" "$KERNEL_FOLDER/include/linux" "$KERNEL_FOLDER/KernelSU-Next"
+          cp "$SUSFS_PATCH_50_SRC" "$SUSFS_PATCH_50_DST"
+          cp "$HIDE_STUFF_PATCH_69_SRC" "$HIDE_STUFF_PATCH_69_DST"
+          cp "$KSU_SUSFS_PATCH_10_SRC" "$KSU_SUSFS_PATCH_10_DST"
+          cp "$FIX_SUSFS_REJECTS" "$FIX_SUSFS_REJECTS_DST"
+          cp "$FIX_HIDE_REJECTS" "$FIX_HIDE_REJECTS_DST"
+          echo "Patch files copied."
   
           # (Optionally) apply KernelSU patch inside the KernelSU-Next folder
           # echo "--- Applying KernelSU Patch (KernelSU-Next dir) ---"
@@ -226,43 +274,34 @@
           # echo "--- KernelSU Patch applied ---"
   
           # Apply SUSFS and Hide Stuff patches at the kernel root
-          # echo "--- Applying SUSFS and Hide Stuff Patches (Kernel Root dir) ---"
-          # echo "Current working directory (Kernel Root) BEFORE SUSFS patches: $(pwd)"
-          # echo "Listing fs/Makefile before SUSFS patches:"
-          # ls -l "$KERNEL_FOLDER/fs/Makefile"
-          # echo "Applying 50_add_susfs.patch..."
-          # patch -p1 -F 3 -N < "$KERNEL_FOLDER/50_add_susfs.patch" || true
-          # echo "Applying 69_hide_stuff.patch..."
-          # patch -p1 -F 3 -N < "$KERNEL_FOLDER/69_hide_stuff.patch" || true
-          # echo "Current working directory (Kernel Root) AFTER SUSFS patches: $(pwd)"
-          # echo "--- SUSFS and Hide Stuff Patches applied ---"
+           echo "--- Applying SUSFS and Hide Stuff Patches (Kernel Root dir) ---"
+           echo "Current working directory (Kernel Root) BEFORE SUSFS patches: $(pwd)"
+           echo "Listing fs/Makefile before SUSFS patches:"
+           ls -l "$KERNEL_FOLDER/fs/Makefile"
+           echo "Applying 50_add_susfs.patch..."
+           patch -p1 -F 3 -N < "$KERNEL_FOLDER/50_add_susfs.patch" || true
+           echo "Applying fix_susfs_rejects.patch..."
+           patch -p1 -F 3 -N < "$KERNEL_FOLDER/fix_susfs_rejects.patch" || true
+           echo "Applying 69_hide_stuff.patch..."
+           patch -p1 -F 3 -N < "$KERNEL_FOLDER/69_hide_stuff.patch" || true
+           echo "Current working directory (Kernel Root) AFTER SUSFS patches: $(pwd)"
+           echo "--- SUSFS and Hide Stuff Patches applied ---"
   
           # Commit changes in common directory using absolute paths
           cd "$KERNEL_FOLDER/common"
           git add -A && git commit -a -m "BUILD Kernel" || true
           cd "$KERNEL_FOLDER"
           git add -A && git commit -a -m "BUILD Kernel" || true
-          # git rm --cached KernelSU-Next
+          git rm --cached KernelSU-Next
 
-          # Apply remaining patches (if needed, currently commented out)
-          # echo "--- Applying remaining patches (Kernel Root dir) ---"
-          # echo "Current working directory (Kernel Root) BEFORE remaining patches: $(pwd)"
-          # echo "Listing fs/proc directory before remaining patches:"
-          # ls -l "$KERNEL_FOLDER/fs/proc/" || echo "No fs/proc directory found."
-          # echo "Applying fix_susfs_rejects.patch..."
-          # patch -p1 -F 3 -N < "$KERNEL_FOLDER/fix_susfs_rejects.patch" || true
-          # echo "--- Remaining patches applied ---"
-           echo "Applying fix_lto.patch..."
-           patch -p1 < "$WORKSPACE_FOLDER/kernel_patches/fix_lto.patch" || true
-           sed -i 's/-dirty//' ./scripts/setlocalversion
-           if [ -e "$KERNEL_FOLDER/arch/arm64/configs/vendor/laurel_sprout-perf_defconfig" ]; then
-            sed -i -E 's/^CONFIG_(LTO[^=]*|HAVE_LTO[^=]*|CC_OPTIMIZE_FOR[^=]*|MODVERSIONS)=(y|n)/# CONFIG_\1=\2/g' arch/arm64/configs/vendor/laurel_sprout-perf_defconfig
-            echo -e "\n\n# Workflow added configs #\nCONFIG_LTO_CLANG=y\nCONFIG_LTO_CLANG_THIN=y\nCONFIG_HAVE_LTO_CLANG=y\nCONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y\nCONFIG_MODVERSIONS=n" >> arch/arm64/configs/vendor/laurel_sprout-perf_defconfig
-           fi
-           if [ -e "$KERNEL_FOLDER/arch/arm64/configs/vendor/laurel_sprout.config" ]; then
-            sed -i -E 's/^CONFIG_(LTO[^=]*|HAVE_LTO[^=]*|CC_OPTIMIZE_FOR[^=]*|MODVERSIONS)=(y|n)/# CONFIG_\1=\2/g' arch/arm64/configs/vendor/trinket-perf_defconfig
-            echo -e "\n\n# Workflow added configs #\nCONFIG_LTO_CLANG=y\nCONFIG_LTO_CLANG_THIN=y\nCONFIG_HAVE_LTO_CLANG=y\nCONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y\nCONFIG_MODVERSIONS=n" >> arch/arm64/configs/vendor/trinket-perf_defconfig
-           fi
+           # Apply remaining patches (if needed, currently commented out)
+           echo "--- Applying remaining patches (Kernel Root dir) ---"
+           echo "Current working directory (Kernel Root) BEFORE remaining patches: $(pwd)"
+           echo "Listing fs/proc directory before remaining patches:"
+           ls -l "$KERNEL_FOLDER/fs/proc/" || echo "No fs/proc directory found."
+           # echo "Applying fix_hide_rejects.patch..."
+           # patch -p1 -F 3 -N < "$KERNEL_FOLDER/fix_hide_rejects.patch" || true
+           # echo "--- Remaining patches applied ---"
 
       - name: Building kernel
         id: build
@@ -286,8 +325,7 @@
           # Use an absolute output directory for the build (e.g., $KERNEL_FOLDER/out)
           if [ -e "$KERNEL_FOLDER/arch/arm64/configs/vendor/laurel_sprout-perf_defconfig" ]; then
            make O="$KERNEL_FOLDER/out" ARCH=arm64 vendor/laurel_sprout-perf_defconfig V=1
-          fi
-          if [ -e "$KERNEL_FOLDER/arch/arm64/configs/vendor/laurel_sprout.config" ]; then
+          else
            make O="$KERNEL_FOLDER/out" ARCH=arm64 vendor/trinket-perf_defconfig vendor/laurel_sprout.config V=1
           fi
           make O="$KERNEL_FOLDER/out" CC="ccache clang" LD=ld.lld LLVM=1 LLVM_IAS=1 -j"$(nproc --all)" CROSS_COMPILE=aarch64-linux-gnu-
@@ -335,7 +373,7 @@
                 cp -f "$BOOT_FOLDER/dtbo.img" "$BOOT_FOLDER/$ak_folder_name"
               fi
               local date="$(date +"%d%m%Y")"
-              local zip_name="$date-MiA3-${{ inputs.tag }}-${{ github.run_number }}"
+              local zip_name="$date-MiA3${{ inputs.build_type }}-${{ inputs.tag }}-${{ github.run_number }}"
               cd "$BOOT_FOLDER"
               mkdir release
               cp -r $PWD/$ak_folder_name/* $PWD/release
@@ -375,6 +413,7 @@
 #            ${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/dtbo.img
 
       - name: Upload AnyKernel Artifacts (if not releasing and URLs provided)
+        if: ${{ github.event.inputs.UPLOAD_TO_RELEASE != 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.anykernel.outputs.anykernel_zipname }}
