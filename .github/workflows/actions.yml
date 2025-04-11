@@ -24,8 +24,8 @@ jobs:
           echo "ksu_branch=next" >> $GITHUB_OUTPUT
           echo "ksu_sus_b=next-susfs-dev" >> $GITHUB_OUTPUT
 
-  sm8150-lineage-22-2:
-    uses: ./.github/workflows/sm8150-lineage-22-2-actions.yml
+  sm6125-lineage-22-2:
+    uses: ./.github/workflows/sm6125-lineage-22-2-actions.yml
     needs: set-env
     secrets: inherit
     with:

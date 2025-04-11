@@ -31,13 +31,13 @@ jobs:
       - name: Set env variables
         id: env
         run: |
-          echo "kernel_url=https://github.com/liquidprjkt/snowflake_laurel_sprout" >> $GITHUB_OUTPUT
-          echo "kernel_branch=snowflake_noname" >> $GITHUB_OUTPUT
+          echo "kernel_url=https://github.com/TheSillyOk/android_kernel_qcom_sm6125" >> $GITHUB_OUTPUT
+          echo "kernel_branch=lineage-22.2-common" >> $GITHUB_OUTPUT
           echo "patches_url=https://github.com/TheSillyOk/kernel_ls_patches" >> $GITHUB_OUTPUT
-          echo "patches_branch=master" >> $GITHUB_OUTPUT
+          echo "patches_branch=new" >> $GITHUB_OUTPUT
           echo "anykernel_url=https://github.com/TheSillyOk/anykernel" >> $GITHUB_OUTPUT
           echo "anykernel_branch=master" >> $GITHUB_OUTPUT
-          echo "tag=[Snowflake]" >> $GITHUB_OUTPUT
+          echo "tag=[SM6125-LOS-22.2]" >> $GITHUB_OUTPUT
 
   ksunextsusfs:
     uses: ./.github/workflows/ksunextsusfs.yml
