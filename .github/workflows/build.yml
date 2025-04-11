@@ -32,6 +32,9 @@
      susfs:
       type: string
       required: true
+     build_type:
+      type: string
+      required: true
  jobs:
   build:
     if: github.event.repository.owner.id == github.event.sender.id
