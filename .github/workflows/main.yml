@@ -280,7 +280,8 @@
           # Use an absolute output directory for the build (e.g., $KERNEL_FOLDER/out)
           if [ -e "$KERNEL_FOLDER/arch/arm64/configs/vendor/laurel_sprout-perf_defconfig" ];
            make O="$KERNEL_FOLDER/out" ARCH=arm64 vendor/laurel_sprout-perf_defconfig V=1
-          else
+          fi
+          if [ -e "$KERNEL_FOLDER/arch/arm64/configs/vendor/laurel_sprout.config" ];
            make O="$KERNEL_FOLDER/out" ARCH=arm64 vendor/trinket-perf_defconfig vendor/laurel_sprout.config V=1
           fi
           make O="$KERNEL_FOLDER/out" CC="ccache clang" LD=ld.lld LLVM=1 LLVM_IAS=1 -j"$(nproc --all)" CROSS_COMPILE=aarch64-linux-gnu-
