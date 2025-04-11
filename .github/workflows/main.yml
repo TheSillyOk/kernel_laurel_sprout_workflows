@@ -294,7 +294,7 @@
 
           BUILD_END_TIME=$(date +%s)
           DIFF=$((BUILD_END_TIME - BUILD_START_TIME))
-          echo "elapsed_time=$BUILD_ELAPSED_TIME" >> $GITHUB_OUTPUT
+          echo "elapsed_time=$DIFF" >> $GITHUB_OUTPUT
           echo -e "Build completed in $((DIFF / 60)) minute(s) and $((DIFF % 60)) seconds."
 
         working-directory: ${{ steps.kernel.outputs.kernel-folder }}

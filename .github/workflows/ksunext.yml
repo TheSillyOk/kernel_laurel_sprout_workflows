@@ -235,10 +235,20 @@
        
 
           # Append configuration settings to the defconfig file (using its absolute path)
-           sed -i -E 's/^CONFIG_(KPROBES|TMPFS_XATTR|KSU[^=]*)=(y|n)/# CONFIG_\1=\2/g' arch/arm64/configs/vendor/laurel_sprout-perf_defconfig && echo -e "\n\n# Workflow added configs #\nCONFIG_KPROBES=n\nCONFIG_KSU=y\nCONFIG_TMPFS_XATTR=y" >> arch/arm64/configs/vendor/laurel_sprout-perf_defconfig
+            if [ -e "$KERNEL_FOLDER/arch/arm64/configs/vendor/laurel_sprout-perf_defconfig" ]; then
+            sed -i -E 's/^CONFIG_(KPROBES|TMPFS_XATTR|KSU[^=]*)=(y|n)/# CONFIG_\1=\2/g' arch/arm64/configs/vendor/laurel_sprout-perf_defconfig && echo -e "\n\n# Workflow added configs #\nCONFIG_KPROBES=n\nCONFIG_KSU=y\nCONFIG_KSU_SUSFS=y\nCONFIG_TMPFS_XATTR=y" >> arch/arm64/configs/vendor/laurel_sprout-perf_defconfig
+           else
+            sed -i -E 's/^CONFIG_(KPROBES|TMPFS_XATTR|KSU[^=]*)=(y|n)/# CONFIG_\1=\2/g' arch/arm64/configs/vendor/trinket-perf_defconfig && echo -e "\n\n# Workflow added configs #\nCONFIG_KPROBES=n\nCONFIG_KSU=y\nCONFIG_KSU_SUSFS=y\nCONFIG_TMPFS_XATTR=y" >> arch/arm64/configs/vendor/trinket-perf_defconfig
+           fi
            sed -i 's/-dirty//' ./scripts/setlocalversion
-           sed -i -E 's/^CONFIG_(LTO[^=]*|HAVE_LTO[^=]*|CC_OPTIMIZE_FOR[^=]*|MODVERSIONS)=(y|n)/# CONFIG_\1=\2/g' arch/arm64/configs/vendor/laurel_sprout-perf_defconfig
-           echo -e "\n\n# Workflow added configs #\nCONFIG_LTO_CLANG=y\nCONFIG_LTO_CLANG_THIN=y\nCONFIG_HAVE_LTO_CLANG=y\nCONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y\nCONFIG_MODVERSIONS=n" >> arch/arm64/configs/vendor/laurel_sprout-perf_defconfig
+           if [ -e "$KERNEL_FOLDER/arch/arm64/configs/vendor/laurel_sprout-perf_defconfig" ]; then
+            sed -i -E 's/^CONFIG_(LTO[^=]*|HAVE_LTO[^=]*|CC_OPTIMIZE_FOR[^=]*|MODVERSIONS)=(y|n)/# CONFIG_\1=\2/g' arch/arm64/configs/vendor/laurel_sprout-perf_defconfig
+            echo -e "\n\n# Workflow added configs #\nCONFIG_LTO_CLANG=y\nCONFIG_LTO_CLANG_THIN=y\nCONFIG_HAVE_LTO_CLANG=y\nCONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y\nCONFIG_MODVERSIONS=n" >> arch/arm64/configs/vendor/laurel_sprout-perf_defconfig
+           fi
+           if [ -e "$KERNEL_FOLDER/arch/arm64/configs/vendor/laurel_sprout.config" ]; then
+            sed -i -E 's/^CONFIG_(LTO[^=]*|HAVE_LTO[^=]*|CC_OPTIMIZE_FOR[^=]*|MODVERSIONS)=(y|n)/# CONFIG_\1=\2/g' arch/arm64/configs/vendor/trinket-perf_defconfig
+            echo -e "\n\n# Workflow added configs #\nCONFIG_LTO_CLANG=y\nCONFIG_LTO_CLANG_THIN=y\nCONFIG_HAVE_LTO_CLANG=y\nCONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y\nCONFIG_MODVERSIONS=n" >> arch/arm64/configs/vendor/trinket-perf_defconfig
+           fi
 
       - name: Building kernel
         id: build
@@ -261,13 +271,18 @@
           mkdir -p "$KERNEL_FOLDER/artifacts"
 
           # Use an absolute output directory for the build (e.g., $KERNEL_FOLDER/out)
-          make O="$KERNEL_FOLDER/out" ARCH=arm64 vendor/laurel_sprout-perf_defconfig V=1
+                   if [ -e "$KERNEL_FOLDER/arch/arm64/configs/vendor/laurel_sprout-perf_defconfig" ]; then
+           make O="$KERNEL_FOLDER/out" ARCH=arm64 vendor/laurel_sprout-perf_defconfig V=1
+          fi
+          if [ -e "$KERNEL_FOLDER/arch/arm64/configs/vendor/laurel_sprout.config" ]; then
+           make O="$KERNEL_FOLDER/out" ARCH=arm64 vendor/trinket-perf_defconfig vendor/laurel_sprout.config V=1
+          fi
           make O="$KERNEL_FOLDER/out" CC="ccache clang" LD=ld.lld LLVM=1 LLVM_IAS=1 -j"$(nproc --all)" CROSS_COMPILE=aarch64-linux-gnu-
 
           BUILD_END_TIME=$(date +%s)
-          BUILD_ELAPSED_TIME=$((BUILD_END_TIME - BUILD_START_TIME))
-          echo "elapsed_time=$BUILD_ELAPSED_TIME" >> $GITHUB_OUTPUT
-          echo "Kernel build finished in $BUILD_ELAPSED_TIME seconds."
+          DIFF=$((BUILD_END_TIME - BUILD_START_TIME))
+          echo "elapsed_time=$DIFF" >> $GITHUB_OUTPUT
+          echo -e "Build completed in $((DIFF / 60)) minute(s) and $((DIFF % 60)) seconds."
 
         working-directory: ${{ steps.kernel.outputs.kernel-folder }}
 
