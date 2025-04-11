@@ -165,14 +165,14 @@
           # Clone the kernel tree into an absolute path
           git clone --depth=1 "${{ inputs.kernel_url }}" -b "${{ inputs.kernel_branch }}" "$WORKSPACE_FOLDER/kernel_tree"
           echo "kernel-folder=$WORKSPACE_FOLDER/kernel_tree" >> $GITHUB_OUTPUT
+          KERNEL_FOLDER="${{ steps.kernel.outputs.kernel-folder }}"
+          cd "$KERNEL_FOLDER"
 
           # Clone additional repositories into the absolute workspace folder
 
           git clone "${{ inputs.patches_url }}" -b "${{ inputs.patches_branch }}" "$WORKSPACE_FOLDER/kernel_patches"
+          KERNEL_PATCHES_FOLDER="$WORKSPACE_FOLDER/kernel_patches
           mkdir -p "$WORKSPACE_FOLDER/kernel_tree/common/fs" "$WORKSPACE_FOLDER/kernel_tree/common/include/linux"
-          KERNEL_FOLDER="${{ steps.kernel.outputs.kernel-folder }}"
-          WORKSPACE_FOLDER="${{ steps.workspace.outputs.workspace-folder }}"
-          cd "$KERNEL_FOLDER"
 
           # python3
           PYTHON3="$KERNEL_PATCHES_FOLDER/python3.patch"
@@ -229,6 +229,9 @@
         if: ${{ inputs.susfs != 'false' }}
         run: |
           set -e
+
+          KERNEL_FOLDER="${{ steps.kernel.outputs.kernel-folder }}"
+          WORKSPACE_FOLDER="${{ steps.workspace.outputs.workspace-folder }}"
 
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b kernel-4.14 "$WORKSPACE_FOLDER/susfs4ksu"
 
