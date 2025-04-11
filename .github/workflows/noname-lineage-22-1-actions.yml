@@ -39,7 +39,7 @@ jobs:
           echo "anykernel_branch=master" >> $GITHUB_OUTPUT
           echo "tag=[NoName-LOS-22.1]" >> $GITHUB_OUTPUT
 
-   ksunextsusfs:
+  ksunextsusfs:
     uses: ./.github/workflows/build.yml
     needs: set-env
     secrets: inherit
