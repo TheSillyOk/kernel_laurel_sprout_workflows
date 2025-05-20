@@ -302,7 +302,7 @@
            EXTRA=""
           fi
           mkdir arch/arm64/boot/dts/xiaomi/.ginkgo-trinket-overlay.dtbo.qcom-base
-          chmod -R +rw $KERNEL_FOLDER
+          sudo chmod -R +rwx $KERNEL_FOLDER
           echo "Building kernel using absolute paths..."
           export CCACHE_EXEC=$(which ccache)
           export ARCH=arm64
@@ -382,7 +382,7 @@
 
 
           date="$(date +"%d%m%Y")"
-          zip_name="$date-MiA3$BUILD-${{ matrix.kernel_config.tag }}-${{ github.run_number }}"
+          zip_name="$date-Note8$BUILD-${{ matrix.kernel_config.tag }}-${{ github.run_number }}"
           mkdir release
           rm -rf ak_folder/*.git*
           cp -r ak_folder/* release
