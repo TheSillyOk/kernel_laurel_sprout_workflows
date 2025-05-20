@@ -300,7 +300,8 @@
           else
            EXTRA=""
           fi
-
+          mkdir arch/arm64/boot/dts/xiaomi/.ginkgo-trinket-overlay.dtbo.qcom-base
+          chmod -R +rw $KERNEL_FOLDER
           echo "Building kernel using absolute paths..."
           export CCACHE_EXEC=$(which ccache)
           export ARCH=arm64
