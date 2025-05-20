@@ -69,9 +69,9 @@
       - name: Maximize build space
         uses: easimon/maximize-build-space@master
         with:
-          root-reserve-mb: 8192
+          root-reserve-mb: 9192
           temp-reserve-mb: 2048
-          swap-size-mb: 8192
+          swap-size-mb: 7192
           remove-dotnet: "true"
           remove-android: "true"
           remove-haskell: "true"
@@ -135,6 +135,7 @@
           wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz -O clang.tar.gz
           mkdir -p clang
           tar -xf clang.tar.gz -C clang
+          rm clang.tar.gz
           echo "Clang downloaded and extracted."
 
       - name: Set up ccache
