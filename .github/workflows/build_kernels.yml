@@ -1,6 +1,7 @@
  name: Kernel Build
  on:
   workflow_dispatch:
+  workflow_call:
   pull_request:
   push:
  jobs:
@@ -26,17 +27,17 @@
          tag: "[Snowflake]"
          defconfig: "vendor/laurel_sprout-perf_defconfig"
 
-       - kernel_name: "NoName-LOS-22.1"
+       - kernel_name: "N-22.1"
          kernel_url: "https://github.com/TheSillyOk/kernel_xiaomi_laurel_sprout-noname"
          kernel_branch: "heresy"
          tag: "[NoName-LOS-22.1]"
 
-       - kernel_name: "NoName-LOS-18.1"
+       - kernel_name: "N-18.1"
          kernel_url: "https://github.com/TheSillyOk/kernel_laurel_sprout" 
          kernel_branch: "lineage-18.1"
          tag: "[NoName-LOS-18.1]"
 
-       - kernel_name: "NoName-VIC"
+       - kernel_name: "N-VIC"
          kernel_url: "https://github.com/TheSillyOk/kernel_laurel_sprout" 
          kernel_branch: "vic"
          tag: "[NoName-VIC]"
@@ -85,6 +86,7 @@
           set_config "anykernel_branch" "" " -b ${{ matrix.kernel_config.anykernel_branch }}"
 
           set_config "kernel_branch" "" " -b ${{ matrix.kernel_config.kernel_branch }}"
+
 
 
       - name: Maximize build space
@@ -414,20 +416,77 @@
           path: |
             ${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/release/
 
+  release:
+    needs: build
+    if: github.ref_type == 'tag'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./downloaded-artifacts
 
-#      - name: Upload to Release
-#        uses: softprops/action-gh-release@v2
-#        with:
-#          files: |
-#            ${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/${{ steps.anykernel.outputs.anykernel_zipname }}
-#            ${{ steps.kernel.outputs.kernel-folder }}/out/arch/arm64/boot/${{ steps.second_anykernel.outputs.second_anykernel_zipname }}
-#          name: laurel_sprout-${{ github.run_id }}
-#          tag_name: ${{ github.run_id }}
-#          body: |
-#            <b>${{ steps.workspace.outputs.build_title }}</b>
-#            <b>Kernel successfully built!</b>, took ${{ steps.build.outputs.elapsed_time }} seconds.
-#
-#            <b>Kernel tree</b>: https://github.com/TheSillyOk/kernel_laurel_sprout/tree/lineage-22.1
-#            <b>Action</b>: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-#        env:
-#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Get KSU & SUSFS refs
+        run: |
+          get_ref() {
+            local name="$1" repo="$2" path="$3" mode="$4"
+            if [[ "$mode" == "tag" ]]; then
+              ref=$(git ls-remote --tags --sort=-v:refname "$repo" | grep -o 'refs/tags/.*' | cut -d/ -f3 | head -n1)
+              url="https://github.com/$path/releases/tag/$ref"
+            else
+              ref=$(git ls-remote "$repo" HEAD | awk '{print $1}')
+              url="https://github.com/$path/commit/$ref"
+            fi
+            echo "${name}_REF=$ref" >> $GITHUB_ENV
+            echo "${name}_URL=$url" >> $GITHUB_ENV
+          }
+
+          get_ref "KSUN" "https://github.com/KernelSU-Next/KernelSU-Next.git" "KernelSU-Next/KernelSU-Next" "commit"
+          get_ref "RKSU" "https://github.com/rsuntk/KernelSU" "rsuntk/KernelSU" "commit"
+          SUSFS_COMMIT_HASH=$(git ls-remote https://gitlab.com/simonpunk/susfs4ksu.git refs/heads/kernel-4.14 | awk '{ print $1 }')
+          echo "SUSFS_COMMIT_HASH=$SUSFS_COMMIT_HASH" >> $GITHUB_ENV
+
+      - name: Set release body
+        run: |
+          cat << 'EOF' > release_body.md
+          SUSFS Module: 
+          -> https://github.com/sidex15/ksu_module_susfs/releases
+      
+          KSU Managers:
+          -> Official KernelSU (`KSU`): [Download](https://github.com/tiann/KernelSU/releases/download/v1.0.1/KernelSU_v1.0.1_11928-release.apk) (don't update)
+          -> Rissu's KernelSU (`RKSU`): [Manager](https://github.com/rsuntk/KernelSU/releases) / [Alternative](https://t.me/mksu_ci)
+          -> KernelSU-Next (`KSUN`): [Releases](https://github.com/rifsxd/KernelSU-Next/releases) / [CI builds](https://t.me/ksunext_ci)
+
+          Versions used for KernelSU variants:
+          -> KernelSU Official (`KSU`): [0.9.5](https://github.com/tiann/KernelSU/releases/tag/v0.9.5) - SUSFS 1.5.5
+          -> Rissu's KernelSU  (`RKSU`): [${{ env.RKSU_REF }}](${{ env.RKSU_URL }}) - SUSFS 1.5.7
+          -> KernelSU Next (`KSU_NEXT`): [${{ env.KSUN_REF }}](${{ env.KSUN_URL }}) - SUSFS 1.5.7+
+          -> SUSFS4KSU: [${{ env.SUSFS_COMMIT_HASH }}](https://gitlab.com/simonpunk/susfs4ksu/-/commit/${{ env.SUSFS_COMMIT_HASH }})
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          prerelease: endsWith(github.event.ref_name, '-PRE')
+          files: ""
+          name: ${{ github.ref_name }}
+          body_path: release_body.md
+
+      - name: Upload Release Assets
+        run: |
+          for file in ./downloaded-artifacts/*; do
+              if [ -d "$file" ]; then
+                  continue
+              fi
+              echo "Uploading $file..."
+              gh release upload ${{ inputs.tag }} "$file"
+          done
+
+      - name: Display Files Uploaded
+        run: |
+          echo "GitHub release created with the following files:"
+          ls ./downloaded-artifacts/**/*
+
