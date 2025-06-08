@@ -53,7 +53,7 @@
          kernel_branch: "vic"
          tag: "NoName-VIC"
 
-      build_type: ["Normal", "KSU", "KSUN", "RKSU"]
+      build_type: ["Normal", "KSUN", "RKSU"]
       susfs: [false, true]
       exclude:
            - build_type: "Normal"
@@ -505,12 +505,10 @@
           -> https://github.com/sidex15/ksu_module_susfs/releases
       
           KSU Managers:
-          -> Official KernelSU (`KSU`): [Download](https://github.com/tiann/KernelSU/releases/download/v1.0.1/KernelSU_v1.0.1_11928-release.apk) (don't update)
           -> Rissu's KernelSU (`RKSU`): [Manager](https://github.com/rsuntk/KernelSU/releases) / [Alternative](https://t.me/mksu_ci)
           -> KernelSU-Next (`KSUN`): [Releases](https://github.com/rifsxd/KernelSU-Next/releases) / [CI builds](https://t.me/ksunext_ci)
 
           Versions used for KernelSU variants & susfs:
-          -> KernelSU Official (`KSU`): [0.9.5](https://github.com/tiann/KernelSU/releases/tag/v0.9.5) - SUSFS 1.5.5
           -> Rissu's KernelSU  (`RKSU`): [${{ env.RKSU_V }}](${{ env.RKSU_URL }}) - SUSFS 1.5.7 ([${{ env.RKSU-SUSFS_V }}](${{ env.RKSU-SUSFS_URL }}))
           -> KernelSU Next (`KSUN`): [${{ env.KSUN_V }}](${{ env.KSUN_URL }}) - SUSFS 1.5.7+ ([${{ env.KSUN-SUSFS_V }}](${{ env.KSUN-SUSFS_URL }}))
           -> SUSFS4KSU: [${{ env.SUSFS_COMMIT_HASH }}](https://gitlab.com/simonpunk/susfs4ksu/-/commit/${{ env.SUSFS_COMMIT_HASH }})
