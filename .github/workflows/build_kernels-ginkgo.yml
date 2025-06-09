@@ -23,15 +23,6 @@
      fail-fast: false
      matrix:
       kernel_config:
-       - kernel_name: "SM6125"
-         kernel_url: "https://github.com/LineageOS/android_kernel_xiaomi_sm6125"
-         anykernel_branch: "sm6125"
-         tag: "SM6125-22.2"
-         defconfig: "vendor/trinket-perf_defconfig"
-         config: "vendor/xiaomi-trinket.config vendor/laurel_sprout.config"
-         patches_folder: "sm6125"
-         python3_patch: false
-
        - kernel_name: "SM6125 - Ginkgo"
          device: Ginkgo
          kernel_url: "https://github.com/LineageOS/android_kernel_xiaomi_sm6125"
@@ -41,29 +32,7 @@
          config: "vendor/xiaomi-trinket.config vendor/ginkgo.config"
          patches_folder: "sm6125"
          python3_patch: false
-
-       - kernel_name: "Snowflake"
-         kernel_url: "https://github.com/liquidprjkt/snowflake_laurel_sprout"
-         kernel_branch: "snowflake_noname"
-         tag: "Snowflake"
-         defconfig: "vendor/laurel_sprout-perf_defconfig"
-
-       - kernel_name: "N22.1"
-         kernel_url: "https://github.com/TheSillyOk/kernel_xiaomi_laurel_sprout-noname"
-         kernel_branch: "heresy"
-         tag: "NoName-22.1"
-
-       - kernel_name: "N18.1"
-         kernel_url: "https://github.com/TheSillyOk/kernel_laurel_sprout" 
-         kernel_branch: "lineage-18.1"
-         tag: "NoName-18.1"
-
-       - kernel_name: "N-VIC"
-         kernel_url: "https://github.com/TheSillyOk/kernel_laurel_sprout" 
-         kernel_branch: "vic"
-         tag: "NoName-VIC"
-
-      build_type: ["Normal", "KSUN", "RKSU"]
+      build_type: ["Normal"]
       susfs: [false, true]
       exclude:
            - build_type: "Normal"
@@ -350,6 +319,7 @@
            git clone https://github.com/TheSillyOk/kernel_extra -b main extra
            rm dtc/dtc && mv extra/dtc dtc/dtc
            chmod +x dtc/dtc
+           sed -i -E 's/DTC_FLAGS += -q/# DTC_FLAGS += -q/gi' $KERNEL_FOLDER/scripts/Makefile.lib # Unsilence dtc
           else
            EXTRA=""
           fi
@@ -365,8 +335,8 @@
 
           mkdir -p "$KERNEL_FOLDER/artifacts"
 
-          make O="$KERNEL_FOLDER/out" ARCH=arm64 ${{ env.defconfig }} ${{ env.config }}
-          make O="$KERNEL_FOLDER/out"$EXTRA CC="ccache clang" LD=ld.lld LLVM=1 LLVM_IAS=1 -j"$(nproc --all)" CROSS_COMPILE=aarch64-linux-gnu-
+          make V=1 O="$KERNEL_FOLDER/out" ARCH=arm64 ${{ env.defconfig }} ${{ env.config }}
+          make V=1 O="$KERNEL_FOLDER/out"$EXTRA CC="ccache clang" LD=ld.lld LLVM=1 LLVM_IAS=1 -j"$(nproc --all)" CROSS_COMPILE=aarch64-linux-gnu- dtbs
 
           BUILD_END_TIME=$(date +%s)
           DIFF=$((BUILD_END_TIME - BUILD_START_TIME))
