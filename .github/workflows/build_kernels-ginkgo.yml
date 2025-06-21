@@ -194,12 +194,9 @@
              patch -p1 -F 3 -N < "$WORKSPACE_FOLDER/kernel_patches/python3.patch" || true
            fi
 
-           echo "--- Applying fix_lto.patch... ---"
-           patch -p1 < "$WORKSPACE_FOLDER/kernel_patches/fix_lto.patch" || true
 
            sed -i 's/-dirty//' ./scripts/setlocalversion
 
-           sed -i -E 's/^CONFIG_(LTO[^=]*|HAVE_LTO[^=]*|CC_OPTIMIZE_FOR[^=]*|MODVERSIONS)=(y|n)/# CONFIG_\1=\2/g' "arch/arm64/configs/${{ env.defconfig }}" && echo -e "\n\n# Workflow added configs #\nCONFIG_LTO_CLANG=y\nCONFIG_LTO_CLANG_THIN=y\nCONFIG_HAVE_LTO_CLANG=y\nCONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y\nCONFIG_MODVERSIONS=n" >> "arch/arm64/configs/${{ env.defconfig }}"
 
       - name: Building kernel
         id: build
@@ -269,6 +266,7 @@
           else
            mkdir -p "$KERNEL_FOLDER/scripts/dtc/libfdt"
            curl https://raw.githubusercontent.com/FlopKernel-Series/flop_ginkgo_kernel/refs/heads/floppy-new/scripts/dtc/libfdt/mkdtboimg.py > "$KERNEL_FOLDER/scripts/dtc/libfdt/mkdtboimg.py"
+           mkdir -p "$KERNEL_FOLDER/out/dtbotmp"
            python3 "$KERNEL_FOLDER/scripts/dtc/libfdt/mkdtboimg.py" create "$KERNEL_FOLDER/out/dtbotmp/dtbo.img" --custom0=0x00000000 --custom1=0x00000000 --page_size=4096 "${{ env.IN_DTBO }}"
            cp -f "$KERNEL_FOLDER/out/dtbotmp/dtbo.img" "$BOOT_FOLDER/ak_folder"
           fi
