@@ -232,8 +232,8 @@
 
           mkdir -p "$KERNEL_FOLDER/artifacts"
 
-          make V=1 O="$KERNEL_FOLDER/out" ARCH=arm64 ${{ env.defconfig }} ${{ env.config }}
-          make V=1 O="$KERNEL_FOLDER/out"$EXTRA CC="ccache clang" LD=ld.lld LLVM=1 LLVM_IAS=1 -j"$(nproc --all)" CROSS_COMPILE=aarch64-linux-gnu-
+          make O="$KERNEL_FOLDER/out" ARCH=arm64 ${{ env.defconfig }} ${{ env.config }}
+          make O="$KERNEL_FOLDER/out"$EXTRA CC="ccache clang" LD=ld.lld LLVM=1 LLVM_IAS=1 -j"$(nproc --all)" CROSS_COMPILE=aarch64-linux-gnu-
 
           BUILD_END_TIME=$(date +%s)
           DIFF=$((BUILD_END_TIME - BUILD_START_TIME))
