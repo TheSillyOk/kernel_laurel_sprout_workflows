@@ -207,7 +207,7 @@
           TOOLS_FOLDER="${{ steps.workspace.outputs.tools-folder }}"
           cd $KERNEL_FOLDER
 
-          if [[ "${{ matrix.kernel_config.tag }}" == *"SM6125"* ]]; then
+          if [[ "${{ matrix.kernel_config.tag }}" != *"SM6125"* ]]; then
            EXTRA=" DTC_PREBUILT=true DTC=$KERNEL_FOLDER/dtc/dtc DTC_OVERLAY_TEST_EXT=$KERNEL_FOLDER/libufdt/ufdt_apply_overlay MKDTIMG=$KERNEL_FOLDER/libufdt/mkdtimg"
            wget https://android.googlesource.com/platform/prebuilts/misc/+archive/refs/tags/android-15.0.0_r26/linux-x86.tar.gz -O androd.tar.gz
            tar -xzf androd.tar.gz
