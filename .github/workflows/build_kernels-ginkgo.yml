@@ -267,6 +267,8 @@
           if [ -e "$BOOT_FOLDER/dtbo.img" ]; then
             cp -f "$BOOT_FOLDER/dtbo.img" "$BOOT_FOLDER/ak_folder"
           else
+           mkdir -p "$KERNEL_FOLDER/scripts/dtc/libfdt"
+           curl https://raw.githubusercontent.com/FlopKernel-Series/flop_ginkgo_kernel/refs/heads/floppy-new/scripts/dtc/libfdt/mkdtboimg.py > "$KERNEL_FOLDER/scripts/dtc/libfdt/mkdtboimg.py"
            python3 "$KERNEL_FOLDER/scripts/dtc/libfdt/mkdtboimg.py" create "$KERNEL_FOLDER/out/dtbotmp/dtbo.img" --custom0=0x00000000 --custom1=0x00000000 --page_size=4096 "${{ env.IN_DTBO }}"
            cp -f "$KERNEL_FOLDER/out/dtbotmp/dtbo.img" "$BOOT_FOLDER/ak_folder"
           fi
