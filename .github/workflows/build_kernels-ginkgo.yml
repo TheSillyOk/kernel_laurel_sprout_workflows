@@ -198,111 +198,6 @@
 
            sed -i -E 's/^CONFIG_(LTO[^=]*|HAVE_LTO[^=]*|CC_OPTIMIZE_FOR[^=]*|MODVERSIONS)=(y|n)/# CONFIG_\1=\2/g' "arch/arm64/configs/${{ env.defconfig }}" && echo -e "\n\n# Workflow added configs #\nCONFIG_LTO_CLANG=y\nCONFIG_LTO_CLANG_THIN=y\nCONFIG_HAVE_LTO_CLANG=y\nCONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y\nCONFIG_MODVERSIONS=n" >> "arch/arm64/configs/${{ env.defconfig }}"
 
-      - name: Apply KernelSU
-        if: ${{ matrix.build_type != 'Normal' }}
-        id: ksu
-        run: |
-          set -e
-
-          WORKSPACE_FOLDER="${{ steps.workspace.outputs.workspace-folder }}"
-          KERNEL_FOLDER="$WORKSPACE_FOLDER/kernel_tree"
-          KERNEL_PATCHES_FOLDER="$WORKSPACE_FOLDER/kernel_patches"
-          cd "$KERNEL_FOLDER"
-          
-          echo "Applying manual_hooks.patch..."
-          patch -p1 -F 3 -N < "$KERNEL_PATCHES_FOLDER/${{ env.patches_folder }}/manual_hooks.patch" || true
-
-          echo "--- Setting up KernelSU: ${{ matrix.build_type }} ---"
-          case "${{ matrix.build_type }}-${{ matrix.susfs }}" in
-           KSU-*)
-            curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
-             patch -p1 -F 3 -N < "$KERNEL_PATCHES_FOLDER/path_unmount.patch" || true
-             patch -p1 -F 3 -N < "$KERNEL_PATCHES_FOLDER/get_cred_rcu.patch"
-             patch -p1 -F 3 -N < "$KERNEL_PATCHES_FOLDER/strncpy_from_user_nofault.patch"
-            cd KernelSU
-           ;;
-           KSUN-false)
-            curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next
-            cd KernelSU-Next
-           ;;
-           KSUN-true)
-            curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next-susfs-dev
-            cd KernelSU-Next
-           ;;
-           RKSU-false)
-            curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s main
-             patch -p1 -F 3 -N < "$KERNEL_PATCHES_FOLDER/path_unmount.patch" || true
-             patch -p1 -F 3 -N < "$KERNEL_PATCHES_FOLDER/get_cred_rcu.patch"
-             patch -p1 -F 3 -N < "$KERNEL_PATCHES_FOLDER/strncpy_from_user_nofault.patch"
-            cd KernelSU
-           ;;
-           RKSU-true)
-            curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s susfs-main
-             patch -p1 -F 3 -N < "$KERNEL_PATCHES_FOLDER/path_unmount.patch" || true
-             patch -p1 -F 3 -N < "$KERNEL_PATCHES_FOLDER/get_cred_rcu.patch"
-             patch -p1 -F 3 -N < "$KERNEL_PATCHES_FOLDER/strncpy_from_user_nofault.patch"
-            cd KernelSU
-           ;;
-           *)
-            echo "Invalid selection for build_type and/or susfs: ${{ matrix.build_type }}-${{ matrix.susfs }}"
-           ;;
-          esac
-          echo "--- ${{ matrix.build_type }} setup complete ---"
-           cd $KERNEL_FOLDER
-
-          # Append configuration settings to the defconfig file
-           sed -i -E 's/^CONFIG_(KPROBES|TMPFS_XATTR|KSU[^=]*)=(y|n)/# CONFIG_\1=\2/g' "arch/arm64/configs/${{ env.defconfig }}" && echo -e "\n\n# Workflow added configs #\nCONFIG_KPROBES=n\nCONFIG_KSU=y\nCONFIG_TMPFS_XATTR=y" >> "arch/arm64/configs/${{ env.defconfig }}"
-
-      - name: Apply SUSFS
-        if: ${{ matrix.susfs }}
-        id: susfs
-        run: |
-          set -e
-
-          WORKSPACE_FOLDER="${{ steps.workspace.outputs.workspace-folder }}"
-          KERNEL_FOLDER="$WORKSPACE_FOLDER/kernel_tree"
-          KERNEL_PATCHES_FOLDER="$WORKSPACE_FOLDER/kernel_patches"
-
-          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b "${{ env.susfs_branch }}" "$WORKSPACE_FOLDER/susfs4ksu"
-
-          SUSFS4KSU_PATCHES_FOLDER="$WORKSPACE_FOLDER/susfs4ksu/kernel_patches"
-
-          cp -r $SUSFS4KSU_PATCHES_FOLDER/fs/* $KERNEL_FOLDER/fs/
-          cp -r $SUSFS4KSU_PATCHES_FOLDER/include/linux/* $KERNEL_FOLDER/include/linux
-
-          cd "$KERNEL_FOLDER"
-          echo "--- Applying SUSFS and Hide Stuff Patches ---"
-
-          echo "--- Applying 50_add_susfs.patch... ---"
-          patch -p1 -F 3 -N < "$SUSFS4KSU_PATCHES_FOLDER/50_add_susfs_in_${{ env.susfs_branch }}.patch" || true
-
-          echo "--- Applying fix_susfs_rejects.patch... ---"
-          patch -p1 -F 3 -N < "$KERNEL_PATCHES_FOLDER/${{ env.patches_folder }}/fix_susfs_rejects.patch" || true
-
-          echo "Applying 69_hide_stuff.patch..."
-          patch -p1 -F 3 -N < "$KERNEL_PATCHES_FOLDER/69_hide_stuff.patch" || true
-
-          echo "--- Applying additional ${{ matrix.build_type }} patches... ---"
-          case "${{ matrix.build_type }}" in
-            KSU)        
-             cd KernelSU
-             patch -p1 -F 3 -N < "$SUSFS4KSU_PATCHES_FOLDER/KernelSU/10_enable_susfs_for_ksu.patch"
-            ;;
-            RKSU)
-             patch -p1 -F 3 -N < "$KERNEL_PATCHES_FOLDER/BACKPORT-SUSFS-v1.5.7-NON-GKI-4.14.patch"
-            ;;
-            KSUN)
-              echo "--- Applying BACKPORT-fs-upstream-susfs-v1.5.7-new-non-gki.patch... ---"
-              patch -p1 -F 3 -N < "$KERNEL_PATCHES_FOLDER/BACKPORT-fs-upstream-susfs-v1.5.7-new-non-gki.patch" || true
-          esac
-          echo "--- Additional ${{ matrix.build_type }} patches applied ---"
-          cd $KERNEL_FOLDER
-
-
-          echo "--- SUSFS and Hide Stuff Patches applied ---"
-          echo -e "\nCONFIG_KSU_SUSFS=y" >> "arch/arm64/configs/${{ env.defconfig }}"
-
-
       - name: Building kernel
         id: build
         run: |
@@ -323,7 +218,7 @@
           else
            EXTRA=""
           fi
-
+          mkdir -p arch/arm64/boot/dts/xiaomi/.ginkgo-trinket-overlay.dtbo.qcom-base
           echo "Building kernel using absolute paths..."
           export CCACHE_EXEC=$(which ccache)
           export ARCH=arm64
