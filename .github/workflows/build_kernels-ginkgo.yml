@@ -32,6 +32,8 @@
          config: "vendor/xiaomi-trinket.config vendor/ginkgo.config"
          patches_folder: "sm6125"
          python3_patch: false
+         IN_DTBO: "out/arch/arm64/boot/dts/xiaomi/ginkgo-trinket-overlay.dtbo"
+
       build_type: ["Normal"]
       susfs: [false, true]
       exclude:
@@ -81,6 +83,7 @@
           set_config "device" "MiA3" "${{ matrix.kernel_config.device }}"
           set_config "python3" true "${{ matrix.kernel_config.python3_patch }}"
 
+          set_config "IN_DTBO" "out/arch/arm64/boot/dts/xiaomi/laurel_sprout-trinket-overlay.dtbo" "${{ matrix.kernel_config.IN_DTBO }}"
 
 
       - name: Maximize build space
@@ -211,14 +214,15 @@
            EXTRA=" DTC_PREBUILT=true DTC=$KERNEL_FOLDER/dtc/dtc DTC_OVERLAY_TEST_EXT=$KERNEL_FOLDER/libufdt/ufdt_apply_overlay MKDTIMG=$KERNEL_FOLDER/libufdt/mkdtimg"
            wget https://android.googlesource.com/platform/prebuilts/misc/+archive/refs/tags/android-15.0.0_r20/linux-x86.tar.gz -O androd.tar.gz
            tar -xzf androd.tar.gz
-           # git clone https://github.com/TheSillyOk/kernel_extra -b main extra
-           # rm dtc/dtc && mv extra/dtc dtc/dtc
+           git clone https://github.com/TheSillyOk/kernel_extra -b main extra
+           rm dtc/dtc && mv extra/dtc dtc/dtc
            chmod +x dtc/dtc
            sed -i -E 's/DTC_FLAGS += -q/# DTC_FLAGS += -q/gi' $KERNEL_FOLDER/scripts/Makefile.lib # Unsilence dtc
           else
            EXTRA=""
           fi
 
+          mkdir -p "$KERNEL_FOLDER/out/arch/arm64/boot/dts/xiaomi/.ginkgo-trinket-overlay.dtbo.qcom-base" 
 
           echo "Building kernel using absolute paths..."
           export CCACHE_EXEC=$(which ccache)
@@ -232,7 +236,7 @@
           mkdir -p "$KERNEL_FOLDER/artifacts"
 
           make O="$KERNEL_FOLDER/out" ARCH=arm64 ${{ env.defconfig }} ${{ env.config }}
-          make V=1 O="$KERNEL_FOLDER/out"$EXTRA CC="ccache clang" LD=ld.lld LLVM=1 LLVM_IAS=1 -j"$(nproc --all)" CROSS_COMPILE=aarch64-linux-gnu- dtbs
+          make O="$KERNEL_FOLDER/out"$EXTRA CC="ccache clang" LD=ld.lld LLVM=1 LLVM_IAS=1 -j"$(nproc --all)" CROSS_COMPILE=aarch64-linux-gnu-
 
           BUILD_END_TIME=$(date +%s)
           DIFF=$((BUILD_END_TIME - BUILD_START_TIME))
@@ -262,6 +266,9 @@
 
           if [ -e "$BOOT_FOLDER/dtbo.img" ]; then
             cp -f "$BOOT_FOLDER/dtbo.img" "$BOOT_FOLDER/ak_folder"
+          else
+           python3 "$KERNEL_FOLDER/scripts/dtc/libfdt/mkdtboimg.py" create "$KERNEL_FOLDER/out/dtbotmp/dtbo.img" --custom0=0x00000000 --custom1=0x00000000 --page_size=4096 "${{ env.IN_DTBO }}"
+           cp -f "$KERNEL_FOLDER/out/dtbotmp/dtbo.img" "$BOOT_FOLDER/ak_folder"
           fi
 
           case "${{ matrix.build_type }}-${{ matrix.susfs }}" in
